@@ -7,26 +7,25 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
+
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001', 'https://your-frontend-domain.vercel.app'],
   credentials: true
 }));
 app.use(express.json());
 
-// MongoDB Connection - Fixed deprecated options
+
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/taskmanager')
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// User Model
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true }
 }, { timestamps: true });
 
-// Task Model
+
 const taskSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String },
@@ -37,7 +36,7 @@ const taskSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 const Task = mongoose.model('Task', taskSchema);
 
-// Middleware to verify token
+
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   
@@ -53,8 +52,6 @@ const verifyToken = (req, res, next) => {
     res.status(401).json({ message: 'Invalid token' });
   }
 };
-
-// Health check endpoint
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
   res.status(200).json({ 
@@ -65,21 +62,21 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Auth Routes
+
 app.post('/api/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
-    // Check if user already exists
+   
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Hash password
+    
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Create user
+   
     const user = new User({ name, email, password: hashedPassword });
     await user.save();
     
@@ -97,19 +94,19 @@ app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Find user
+    
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Check password
+    
     const validPass = await bcrypt.compare(password, user.password);
     if (!validPass) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Create token
+   
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'fallback-secret', { expiresIn: '7d' });
     
     res.json({ 
@@ -122,7 +119,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Protected Task Routes
+
 app.get('/api/tasks', verifyToken, async (req, res) => {
   try {
     const tasks = await Task.find({ userId: req.userId });
@@ -190,18 +187,17 @@ app.delete('/api/tasks/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Handle undefined routes
+
 app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Error handling middleware
+
 app.use((error, req, res, next) => {
   console.error('Unhandled error:', error);
   res.status(500).json({ message: 'Internal server error' });
 });
 
-// Server Initialization - Fixed port to 5001
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
