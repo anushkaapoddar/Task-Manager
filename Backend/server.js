@@ -9,43 +9,59 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://your-frontend-domain.vercel.app'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'https://your-frontend-domain.vercel.app'],
   credentials: true
 }));
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/taskmanager', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB Connected Successfully'))
-.catch(err => console.error('❌ MongoDB Connection Error:', err));
+// MongoDB Connection - Fixed deprecated options
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/taskmanager')
+  .then(() => console.log('✅ MongoDB Connected Successfully'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // User Model
 const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String
+  name: { type: String, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true }
 }, { timestamps: true });
 
 // Task Model
 const taskSchema = new mongoose.Schema({
-  title: String,
-  description: String,
-  status: { type: String, default: 'pending' },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  title: { type: String, required: true },
+  description: { type: String },
+  status: { type: String, default: 'pending', enum: ['pending', 'completed'] },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
 const Task = mongoose.model('Task', taskSchema);
 
+// Middleware to verify token
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    req.userId = decoded.userId;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid token' });
+  }
+};
+
 // Health check endpoint
 app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
   res.status(200).json({ 
     message: '✅ Server is healthy', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    databaseStatus: dbStatus
   });
 });
 
@@ -84,13 +100,13 @@ app.post('/api/login', async (req, res) => {
     // Find user
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: 'User not found' });
+      return res.status(400).json({ message: 'Invalid email or password' });
     }
 
     // Check password
     const validPass = await bcrypt.compare(password, user.password);
     if (!validPass) {
-      return res.status(400).json({ message: 'Invalid password' });
+      return res.status(400).json({ message: 'Invalid email or password' });
     }
 
     // Create token
@@ -106,24 +122,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Middleware to verify token
-const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ message: 'Access denied. No token provided.' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    res.status(401).json({ message: 'Invalid token' });
-  }
-};
-
-// Task Routes (Protected)
+// Protected Task Routes
 app.get('/api/tasks', verifyToken, async (req, res) => {
   try {
     const tasks = await Task.find({ userId: req.userId });
@@ -163,7 +162,7 @@ app.put('/api/tasks/:id', verifyToken, async (req, res) => {
     );
     
     if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
+      return res.status(404).json({ message: 'Task not found or unauthorized' });
     }
     
     res.json(task);
@@ -181,7 +180,7 @@ app.delete('/api/tasks/:id', verifyToken, async (req, res) => {
     });
     
     if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
+      return res.status(404).json({ message: 'Task not found or unauthorized' });
     }
     
     res.json({ message: 'Task deleted successfully' });
@@ -202,7 +201,8 @@ app.use((error, req, res, next) => {
   res.status(500).json({ message: 'Internal server error' });
 });
 
-const PORT = process.env.PORT || 5000;
+// Server Initialization - Fixed port to 5001
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
