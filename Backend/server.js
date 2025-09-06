@@ -7,33 +7,13 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ COMPLETE CORS FIX
+// ✅✅✅ FIXED CORS CONFIGURATION - REPLACED YOURS WITH THIS ✅✅✅
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, postman)
-    if (!origin) return callback(null, true);
-    
-    // List of allowed origins
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'https://your-frontend.vercel.app',
-      'https://your-frontend.netlify.app'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: ['http://localhost:3000', 'https://your-frontend.onrender.com'], // Add your future frontend URL here later
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
-
-// ✅ Handle preflight requests for ALL routes
-app.options('*', cors());
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
