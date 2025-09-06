@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: task-manager-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        fromSecret: true
+      - key: JWT_SECRET
+        fromSecret: true
